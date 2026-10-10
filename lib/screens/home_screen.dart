@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-
-import 'drone_detail_screen.dart';
+import '../widgets/route_transitions.dart';
 import 'qr_scan_screen.dart';
+import '../services/theme_provider.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,7 +22,7 @@ class HomeScreen extends StatelessWidget {
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F2633),
+                    color: AppColors.surfaceAlt,
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
                       color: Colors.greenAccent.withValues(alpha: 0.3),
@@ -49,7 +49,7 @@ class HomeScreen extends StatelessWidget {
                 Text(
                   'Drone Telemetry System',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: AppColors.textMuted,
                     fontSize: 14,
                     letterSpacing: 1,
                   ),
@@ -60,45 +60,18 @@ class HomeScreen extends StatelessWidget {
                   height: 60,
                   child: ElevatedButton.icon(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const QrScanScreen(),
-                      ),
+                      FlipRoute(page: const QrScanScreen()),
                     ),
                     icon: const Icon(Icons.qr_code_scanner_rounded, size: 28),
                     label: const Text(
                       'SCAN QR CODE',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.greenAccent.shade700,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      foregroundColor: AppColors.textPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => _showManualDialog(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text(
-                      'Enter Drone ID Manually',
-                      style: TextStyle(fontSize: 14),
                     ),
                   ),
                 ),
@@ -107,58 +80,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showManualDialog(BuildContext context) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F2633),
-        title: const Text(
-          'Enter Drone ID',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          textCapitalization: TextCapitalization.characters,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'e.g. DRONE-001',
-            hintStyle: const TextStyle(color: Colors.white30),
-            filled: true,
-            fillColor: Colors.white10,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final id = controller.text.trim().toUpperCase();
-              if (id.isNotEmpty) {
-                Navigator.of(ctx).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => DroneDetailScreen(droneId: id),
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.greenAccent.shade700,
-            ),
-            child: const Text('View'),
-          ),
-        ],
       ),
     );
   }

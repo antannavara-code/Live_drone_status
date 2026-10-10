@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../services/theme_provider.dart';
 
 class QrGenerateScreen extends StatefulWidget {
   const QrGenerateScreen({super.key});
@@ -24,7 +25,7 @@ class _QrGenerateScreenState extends State<QrGenerateScreen> {
       backgroundColor: const Color(0xFF081621),
       appBar: AppBar(
         title: const Text('Generate QR Code'),
-        backgroundColor: const Color(0xFF0F2633),
+        backgroundColor: AppColors.surfaceAlt,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -33,12 +34,12 @@ class _QrGenerateScreenState extends State<QrGenerateScreen> {
             TextField(
               controller: _controller,
               textCapitalization: TextCapitalization.characters,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Enter drone ID e.g. DRONE-001',
                 hintStyle: const TextStyle(color: Colors.white30),
                 filled: true,
-                fillColor: Colors.white10,
+                fillColor: AppColors.borderSubtle,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -91,7 +92,7 @@ class _QrGenerateScreenState extends State<QrGenerateScreen> {
               Text(
                 'Screenshot this QR code, print it, and stick it on the drone.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
             ],
           ],

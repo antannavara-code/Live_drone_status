@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "499915141245",
-    "project_id": "device-streaming-9afb3868",
-    "storage_bucket": "device-streaming-9afb3868.firebasestorage.app"
+    "project_number": "723100378008",
+    "project_id": "fwdgcstelemetry",
+    "storage_bucket": "fwdgcstelemetry.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:499915141245:android:d0d97b42cfc3ac0ad48114",
+        "mobilesdk_app_id": "1:723100378008:android:3543c70b4adc9bcc4b41ed",
         "android_client_info": {
           "package_name": "com.example.flutter_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAE4aCLRFeS253sb9SUqzxQYzpWPKUlazs"
+          "current_key": "AIzaSyCS1al66EC--B5z2qILXbTNvu7zahfDjpY"
         }
       ],
       "services": {

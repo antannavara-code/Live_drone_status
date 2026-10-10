@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/theme_provider.dart';
 
 class StatusTile extends StatelessWidget {
   final String title;
@@ -20,7 +21,7 @@ class StatusTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color.fromRGBO(255, 255, 255, 0.06),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -36,14 +37,14 @@ class StatusTile extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

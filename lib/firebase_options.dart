@@ -35,10 +35,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return linux;
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -47,28 +44,36 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAE4aCLRFeS253sb9SUqzxQYzpWPKUlazs',
-    appId: '1:499915141245:android:d0d97b42cfc3ac0ad48114',
-    messagingSenderId: '499915141245',
-    projectId: 'device-streaming-9afb3868',
-    storageBucket: 'device-streaming-9afb3868.firebasestorage.app',
+    apiKey: 'AIzaSyCS1al66EC--B5z2qILXbTNvu7zahfDjpY',
+    appId: '1:723100378008:android:3543c70b4adc9bcc4b41ed',
+    messagingSenderId: '723100378008',
+    projectId: 'fwdgcstelemetry',
+    storageBucket: 'fwdgcstelemetry.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyC9KbUisNveC82sTsGHh8Uk6yR0kE4X9R8',
-    appId: '1:499915141245:ios:1541142673124a3bd48114',
-    messagingSenderId: '499915141245',
-    projectId: 'device-streaming-9afb3868',
-    storageBucket: 'device-streaming-9afb3868.firebasestorage.app',
+    apiKey: 'AIzaSyCS1al66EC--B5z2qILXbTNvu7zahfDjpY',
+    appId: '1:723100378008:ios:3543c70b4adc9bcc4b41ed',
+    messagingSenderId: '723100378008',
+    projectId: 'fwdgcstelemetry',
+    storageBucket: 'fwdgcstelemetry.firebasestorage.app',
     iosBundleId: 'com.example.flutterApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyC9KbUisNveC82sTsGHh8Uk6yR0kE4X9R8',
-    appId: '1:499915141245:ios:1541142673124a3bd48114',
-    messagingSenderId: '499915141245',
-    projectId: 'device-streaming-9afb3868',
-    storageBucket: 'device-streaming-9afb3868.firebasestorage.app',
+    apiKey: 'AIzaSyCS1al66EC--B5z2qILXbTNvu7zahfDjpY',
+    appId: '1:723100378008:macos:3543c70b4adc9bcc4b41ed',
+    messagingSenderId: '723100378008',
+    projectId: 'fwdgcstelemetry',
+    storageBucket: 'fwdgcstelemetry.firebasestorage.app',
     iosBundleId: 'com.example.flutterApp',
+  );
+
+  static const FirebaseOptions linux = FirebaseOptions(
+    apiKey: 'AIzaSyCS1al66EC--B5z2qILXbTNvu7zahfDjpY',
+    appId: '1:723100378008:linux:3543c70b4adc9bcc4b41ed',
+    messagingSenderId: '723100378008',
+    projectId: 'fwdgcstelemetry',
+    storageBucket: 'fwdgcstelemetry.firebasestorage.app',
   );
 }

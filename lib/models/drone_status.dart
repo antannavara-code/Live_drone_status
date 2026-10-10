@@ -65,6 +65,11 @@ class DroneStatus {
   final double accelZ;
   final int rcRssi;
   final double lastUpdated;
+  final double diskUsage;
+  final double diskTotalGb;
+  final double distanceToHome;
+  final double windSpeed;
+  final double windDirection;
 
   DroneStatus({
     required this.droneId,
@@ -103,7 +108,58 @@ class DroneStatus {
     required this.accelZ,
     required this.rcRssi,
     required this.lastUpdated,
+    required this.diskUsage,
+    required this.diskTotalGb,
+    required this.distanceToHome,
+    this.windSpeed = 0.0,
+    this.windDirection = 0.0,
   });
+
+  DroneStatus copyWith({double? lastUpdated, double? windSpeed, double? windDirection}) {
+    return DroneStatus(
+      droneId: droneId,
+      batteryPercent: batteryPercent,
+      batteryVoltage: batteryVoltage,
+      batteryCurrent: batteryCurrent,
+      batteryTemperature: batteryTemperature,
+      cellCount: cellCount,
+      gpsLat: gpsLat,
+      gpsLng: gpsLng,
+      altitude: altitude,
+      speed: speed,
+      verticalSpeed: verticalSpeed,
+      heading: heading,
+      roll: roll,
+      pitch: pitch,
+      throttle: throttle,
+      mode: mode,
+      armed: armed,
+      satellites: satellites,
+      status: status,
+      sensorHealthMask: sensorHealthMask,
+      sensorPresentMask: sensorPresentMask,
+      cpuLoad: cpuLoad,
+      dropRate: dropRate,
+      errorsComm: errorsComm,
+      timeBootMs: timeBootMs,
+      ekfFlags: ekfFlags,
+      systemStatus: systemStatus,
+      statusTexts: statusTexts,
+      gyroX: gyroX,
+      gyroY: gyroY,
+      gyroZ: gyroZ,
+      accelX: accelX,
+      accelY: accelY,
+      accelZ: accelZ,
+      rcRssi: rcRssi,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      diskUsage: diskUsage,
+      diskTotalGb: diskTotalGb,
+      distanceToHome: distanceToHome,
+      windSpeed: windSpeed ?? this.windSpeed,
+      windDirection: windDirection ?? this.windDirection,
+    );
+  }
 
   factory DroneStatus.fromJson(Map<String, dynamic> json) {
     final texts = (json['status_texts'] as List<dynamic>?)
@@ -118,18 +174,18 @@ class DroneStatus {
       batteryTemperature:
           (json['battery_temperature'] as num?)?.toDouble() ?? 0.0,
       cellCount: (json['cell_count'] as num?)?.toInt() ?? 0,
-      gpsLat: (json['gps_lat'] as num?)?.toDouble() ?? 0.0,
-      gpsLng: (json['gps_lng'] as num?)?.toDouble() ?? 0.0,
+      gpsLat: ((json['gps_lat'] ?? json['lat'] ?? json['latitude']) as num?)?.toDouble() ?? 0.0,
+      gpsLng: ((json['gps_lng'] ?? json['lng'] ?? json['longitude']) as num?)?.toDouble() ?? 0.0,
       altitude: (json['altitude'] as num?)?.toDouble() ?? 0.0,
-      speed: (json['speed'] as num?)?.toDouble() ?? 0.0,
-      verticalSpeed: (json['vertical_speed'] as num?)?.toDouble() ?? 0.0,
+      speed: ((json['speed'] ?? json['ground_speed']) as num?)?.toDouble() ?? 0.0,
+      verticalSpeed: ((json['vertical_speed'] ?? json['climb_rate']) as num?)?.toDouble() ?? 0.0,
       heading: (json['heading'] as num?)?.toDouble() ?? 0.0,
       roll: (json['roll'] as num?)?.toDouble() ?? 0.0,
       pitch: (json['pitch'] as num?)?.toDouble() ?? 0.0,
       throttle: (json['throttle'] as num?)?.toInt() ?? 0,
-      mode: json['mode'] as String? ?? 'UNKNOWN',
+      mode: (json['mode'] ?? json['flight_mode']) as String? ?? 'UNKNOWN',
       armed: json['armed'] as bool? ?? false,
-      satellites: (json['satellites'] as num?)?.toInt() ?? 0,
+      satellites: ((json['satellites'] ?? json['gps_sats']) as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? 'idle',
       sensorHealthMask:
           ((json['sensor_health_mask'] as num?)?.toInt() ?? 0),
@@ -145,15 +201,23 @@ class DroneStatus {
       gyroX: (json['gyro_x'] as num?)?.toDouble() ?? 0.0,
       gyroY: (json['gyro_y'] as num?)?.toDouble() ?? 0.0,
       gyroZ: (json['gyro_z'] as num?)?.toDouble() ?? 0.0,
-      accelX: (json['accel_x'] as num?)?.toDouble() ?? 0.0,
-      accelY: (json['accel_y'] as num?)?.toDouble() ?? 0.0,
-      accelZ: (json['accel_z'] as num?)?.toDouble() ?? 0.0,
+      accelX: ((json['accel_x'] ?? json['acce_x']) as num?)?.toDouble() ?? 0.0,
+      accelY: ((json['accel_y'] ?? json['acce_y']) as num?)?.toDouble() ?? 0.0,
+      accelZ: ((json['accel_z'] ?? json['acce_z']) as num?)?.toDouble() ?? 0.0,
       rcRssi: (json['rc_rssi'] as num?)?.toInt() ?? -1,
+      distanceToHome: (json['dist_to_home'] as num?)?.toDouble() ?? 0.0,
       lastUpdated: (() {
-        final v = json['last_updated'];
+        final v = json['last_updated'] ?? json['lastUpdated'] ?? json['timestamp'] ?? json['local_received_time'];
         if (v is Timestamp) return v.toDate().millisecondsSinceEpoch / 1000.0;
+        if (v is String) {
+          final dt = DateTime.tryParse(v);
+          if (dt != null) return dt.millisecondsSinceEpoch / 1000.0;
+          return double.tryParse(v) ?? 0.0;
+        }
         return (v as num?)?.toDouble() ?? 0.0;
       })(),
+      diskUsage: (json['disk_usage'] as num?)?.toDouble() ?? 0.0,
+      diskTotalGb: (json['disk_total_gb'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -209,6 +273,7 @@ class DroneStatus {
   }
 
   String get systemStatusString {
+    if (!isConnected) return 'DISCONNECTED';
     const labels = [
       'UNINIT', 'BOOT', 'CALIBRATING', 'STANDBY', 'ACTIVE',
       'CRITICAL', 'EMERGENCY', 'POWEROFF', 'FLIGHT_TERM',
@@ -216,33 +281,58 @@ class DroneStatus {
     return labels[systemStatus.clamp(0, labels.length - 1)];
   }
 
-  String get batteryDisplay => '${batteryVoltage.toStringAsFixed(1)}V';
-  String get batteryPercentDisplay => '$batteryPercent%';
-  String get batteryCurrentDisplay => '${batteryCurrent.toStringAsFixed(2)} A';
+  String get batteryDisplay => isConnected ? '${batteryVoltage.toStringAsFixed(1)}V' : '--.-V';
+  String get batteryPercentDisplay => isConnected ? '$batteryPercent%' : '--%';
+  String get batteryCurrentDisplay => isConnected ? '${batteryCurrent.toStringAsFixed(2)} A' : '--.-- A';
   String get batteryTemperatureDisplay =>
-      '${batteryTemperature.toStringAsFixed(1)}°C';
-  String get cellDisplay => cellCount > 0 ? '${cellCount}S1P' : '';
+      isConnected ? '${batteryTemperature.toStringAsFixed(1)}°C' : '--.-°C';
+  String get cellDisplay => isConnected ? (cellCount > 0 ? '${cellCount}S1P' : '') : '--';
   String get gpsDisplay =>
-      '${gpsLat.toStringAsFixed(4)}, ${gpsLng.toStringAsFixed(4)}';
-  String get altitudeDisplay => '${altitude.toStringAsFixed(1)} m';
-  String get speedDisplay => '${speed.toStringAsFixed(1)} m/s';
-  String get verticalSpeedDisplay => '${verticalSpeed.toStringAsFixed(1)} m/s';
-  String get headingDisplay => '${heading.toStringAsFixed(0)}°';
-  String get rollDisplay => '${roll.toStringAsFixed(1)}°';
-  String get pitchDisplay => '${pitch.toStringAsFixed(1)}°';
-  String get gyroDisplay => '(${gyroX.toStringAsFixed(2)}, ${gyroY.toStringAsFixed(2)}, ${gyroZ.toStringAsFixed(2)})';
-  String get accelDisplay => '(${accelX.toStringAsFixed(2)}, ${accelY.toStringAsFixed(2)}, ${accelZ.toStringAsFixed(2)}) G';
-  String get rcRssiDisplay => rcRssi >= 0 ? '$rcRssi/255' : 'N/A';
+      isConnected ? '${gpsLat.toStringAsFixed(4)}, ${gpsLng.toStringAsFixed(4)}' : '--.----, --.----';
+  String get altitudeDisplay => isConnected ? '${altitude.toStringAsFixed(1)} m' : '---.- m';
+  String get speedDisplay => isConnected ? '${speed.toStringAsFixed(1)} m/s' : '--.- m/s';
+  String get verticalSpeedDisplay => isConnected ? '${verticalSpeed.toStringAsFixed(1)} m/s' : '--.- m/s';
+  String get headingDisplay => isConnected ? '${heading.toStringAsFixed(0)}°' : '---°';
+  String get rollDisplay => isConnected ? '${roll.toStringAsFixed(1)}°' : '--.-°';
+  String get pitchDisplay => isConnected ? '${pitch.toStringAsFixed(1)}°' : '--.-°';
+  String get modeDisplay => isConnected ? mode : '---';
+  String get throttleDisplay => isConnected ? '$throttle%' : '--%';
+  String get gyroDisplay => isConnected
+      ? '(${gyroX.toStringAsFixed(2)}, ${gyroY.toStringAsFixed(2)}, ${gyroZ.toStringAsFixed(2)})'
+      : '(--.---, --.---, --.---)';
+  String get accelDisplay => isConnected
+      ? '(${accelX.toStringAsFixed(2)}, ${accelY.toStringAsFixed(2)}, ${accelZ.toStringAsFixed(2)}) G'
+      : '(--.---, --.---, --.---) G';
+  String get rcRssiDisplay => isConnected ? (rcRssi >= 0 ? '$rcRssi/255' : 'N/A') : '--';
   bool get isConnected {
     if (lastUpdated <= 0) return false;
-    return (DateTime.now().millisecondsSinceEpoch / 1000 - lastUpdated) < 10;
+    final diff = (DateTime.now().millisecondsSinceEpoch / 1000) - lastUpdated;
+    return diff.abs() < 120;
   }
-  String get satellitesDisplay => '$satellites satellites';
-  String get armDisplay => armed ? 'ARMED' : 'DISARMED';
-  String get cpuLoadDisplay => '${cpuLoad.toStringAsFixed(1)}%';
-  String get dropRateDisplay => '${dropRate.toStringAsFixed(1)}%';
-  String get errorsCommDisplay => '$errorsComm errors';
+  double get dataAgeSeconds => (DateTime.now().millisecondsSinceEpoch / 1000) - lastUpdated;
+  bool get isStale => isConnected && dataAgeSeconds > 20;
+  bool get jetsonConnected => isConnected;
+  String get satellitesDisplay => isConnected ? '$satellites satellites' : '-- satellites';
+  String get armDisplay => isConnected ? (armed ? 'ARMED' : 'DISARMED') : '---';
+  String get cpuLoadDisplay => isConnected ? '${cpuLoad.toStringAsFixed(1)}%' : '--.-%';
+  String get dropRateDisplay => isConnected ? '${dropRate.toStringAsFixed(1)}%' : '--.-%';
+  String get errorsCommDisplay => isConnected ? '$errorsComm errors' : '-- errors';
+  String get distanceToHomeDisplay {
+    if (!isConnected) return '---.- m';
+    if (distanceToHome <= 0) return '0 m';
+    if (distanceToHome < 1000) return '${distanceToHome.toStringAsFixed(1)} m';
+    return '${(distanceToHome / 1000).toStringAsFixed(2)} km';
+  }
+  String get windSpeedDisplay => isConnected && windSpeed > 0 ? '${windSpeed.toStringAsFixed(1)} m/s' : '--.- m/s';
+  String get windDirectionDisplay {
+    if (!isConnected || windSpeed <= 0) return '---°';
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    final idx = ((windDirection + 11.25) / 22.5).floor() % 16;
+    return '${windDirection.toStringAsFixed(0)}° ${dirs[idx]}';
+  }
   String get flightTimeDisplay {
+    if (!isConnected) return '--:--:--';
     if (timeBootMs <= 0) return '--:--:--';
     final secs = timeBootMs ~/ 1000;
     final h = (secs ~/ 3600).toString().padLeft(2, '0');

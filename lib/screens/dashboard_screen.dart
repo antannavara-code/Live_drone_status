@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/drone_status.dart';
 import '../models/flight_record.dart';
 import '../services/api_service.dart';
-import '../services/firestore_service.dart';
+import '../services/telemetry_service.dart';
+import '../services/theme_provider.dart';
 import '../widgets/status_tile.dart';
 import 'drone_detail_screen.dart';
 import 'qr_generate_screen.dart';
@@ -18,7 +21,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  late Future<List<DroneStatus>> dronesFuture;
+  late Stream<List<DroneStatus>> dronesStream;
   Future<List<FlightRecord>>? recentFlightsFuture;
   late final TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -28,11 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    dronesFuture = _loadFleetWithRetry();
-    dronesFuture.then((drones) {
-      if (!mounted || drones.isEmpty) return;
-      _selectDrone(drones.first, openDetails: false);
-    }).catchError((_) {});
+    dronesStream = TelemetryService.fleetStream();
   }
 
   @override
@@ -52,23 +51,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<List<DroneStatus>> _loadFleetWithRetry() async {
-    Object? lastError;
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      try {
-        return await FirestoreService.fetchFleet();
-      } catch (error) {
-        lastError = error;
-        if (attempt < 3) {
-          await Future<void>.delayed(Duration(seconds: attempt));
-        }
-      }
-    }
-    throw Exception(
-      'Unable to reach fleet service after 3 attempts: $lastError',
-    );
-  }
-
   void _openDroneDetails(String droneId) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => DroneDetailScreen(droneId: droneId)),
@@ -82,30 +64,22 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _refreshFleet() async {
-    final nextFuture = _loadFleetWithRetry();
-    setState(() {
-      dronesFuture = nextFuture;
-    });
-    final drones = await nextFuture;
-    if (!mounted || drones.isEmpty) return;
-    final active = drones.firstWhere(
-      (drone) => drone.droneId == selectedDrone?.droneId,
-      orElse: () => drones.first,
-    );
-    _selectDrone(active, openDetails: false);
+    // With streams, manual refresh just requires a delay or could reset the stream.
+    // For now we just delay to satisfy the RefreshIndicator.
+    await Future.delayed(const Duration(milliseconds: 500));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF071018),
+      backgroundColor: AppColors.scaffold,
       body: SafeArea(
-        child: FutureBuilder<List<DroneStatus>>(
-          future: dronesFuture,
+        child: StreamBuilder<List<DroneStatus>>(
+          stream: dronesStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CE0B3)),
+              return Center(
+                child: CircularProgressIndicator(color: AppColors.primaryBright),
               );
             }
             if (snapshot.hasError) {
@@ -116,7 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (drones.isEmpty) {
               return _buildEmptyState();
             }
-            selectedDrone ??= drones.first;
+            if (selectedDrone == null) {
+              selectedDrone = drones.first;
+            } else {
+              selectedDrone = drones.firstWhere(
+                (d) => d.droneId == selectedDrone!.droneId,
+                orElse: () => drones.first,
+              );
+            }
 
             return LayoutBuilder(
               builder: (context, constraints) {
@@ -126,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     if (wide) _buildSidebar(drones),
                     Expanded(
                       child: RefreshIndicator(
-                        color: const Color(0xFF4CE0B3),
+                        color: AppColors.primaryBright,
                         onRefresh: _refreshFleet,
                         child: _buildDashboard(drones, constraints.maxWidth),
                       ),
@@ -149,16 +130,16 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.cloud_off_rounded,
-                color: Color(0xFFFFB84D),
+                color: AppColors.warningBright,
                 size: 42,
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Unable to reach fleet service',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                 ),
@@ -167,13 +148,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white60),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 10),
               Text(
                 'Backend URL: ${ApiService.baseUrl}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
@@ -195,15 +176,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildEmptyState() {
     return Center(
       child: _panel(
-        child: const Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.radar_rounded, color: Color(0xFF4CE0B3), size: 42),
+            Icon(Icons.radar_rounded, color: AppColors.primaryBright, size: 42),
             SizedBox(height: 14),
             Text(
               'No drones found',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -217,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildSidebar(List<DroneStatus> drones) {
     return Container(
       width: 292,
-      color: const Color(0xFF0B1520),
+      color: AppColors.sidebar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -229,31 +210,31 @@ class _DashboardScreenState extends State<DashboardScreen>
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CE0B3).withValues(alpha: 0.12),
+                    color: AppColors.primaryBright.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF4CE0B3)),
+                    border: Border.all(color: AppColors.primaryBright),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.flight_takeoff_rounded,
-                    color: Color(0xFF4CE0B3),
+                    color: AppColors.primaryBright,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'AeroPulse',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
                         'Fleet operations',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -269,12 +250,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             Icons.notifications_active_rounded,
             trailing: _countBadge(3),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(22, 24, 22, 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 10),
             child: Text(
               'ACTIVE DRONES',
               style: TextStyle(
-                color: Colors.white38,
+                color: AppColors.textFaint,
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.1,
@@ -309,16 +290,16 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: ListTile(
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        tileColor: active ? const Color(0xFF132638) : null,
+        tileColor: active ? AppColors.surface : null,
         leading: Icon(
           icon,
-          color: active ? const Color(0xFF4CE0B3) : Colors.white54,
+          color: active ? AppColors.primaryBright : AppColors.textMuted,
           size: 21,
         ),
         title: Text(
           label,
           style: TextStyle(
-            color: active ? Colors.white : Colors.white70,
+            color: active ? AppColors.textPrimary : AppColors.textSecondary,
             fontWeight: active ? FontWeight.w800 : FontWeight.w500,
           ),
         ),
@@ -331,13 +312,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFFF5A6B),
+        color: AppColors.dangerBright,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
         '$value',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppColors.textPrimary,
           fontSize: 11,
           fontWeight: FontWeight.w800,
         ),
@@ -354,10 +335,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: active ? const Color(0xFF132638) : const Color(0xFF0F1D2A),
+          color: active ? AppColors.surface : AppColors.tileInactive,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: active ? const Color(0xFF4CE0B3) : Colors.white10,
+            color: active ? AppColors.primaryBright : AppColors.borderSubtle,
           ),
         ),
         child: Row(
@@ -370,14 +351,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   Text(
                     drone.droneId,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    drone.mode,
+                    drone.modeDisplay,
                     style: TextStyle(color: statusColor, fontSize: 12),
                   ),
                 ],
@@ -385,7 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             Text(
               drone.batteryDisplay,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ],
         ),
@@ -424,10 +405,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'DASHBOARD',
           style: TextStyle(
-            color: Color(0xFF4CE0B3),
+            color: AppColors.primaryBright,
             fontSize: 11,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
@@ -441,19 +422,19 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Text(
               drone.droneId,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 30,
                 fontWeight: FontWeight.w900,
               ),
             ),
-            _statusPill(drone.mode),
+            _statusPill(drone.modeDisplay),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           '${drones.length} drones monitored | ${ApiService.baseUrl}',
-          style: const TextStyle(color: Colors.white54, fontSize: 13),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
         ),
       ],
     );
@@ -486,7 +467,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: TextField(
             controller: _searchController,
             textCapitalization: TextCapitalization.characters,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppColors.textPrimary),
             decoration: _inputDecoration('Open drone ID', Icons.search_rounded),
             onSubmitted: (_) => _goToManualDrone(),
           ),
@@ -497,8 +478,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             MaterialPageRoute(builder: (_) => const QrGenerateScreen()),
           ),
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFF132638),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
+            foregroundColor: AppColors.textPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -512,8 +493,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             MaterialPageRoute(builder: (_) => const QrScanScreen()),
           ),
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFF132638),
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
+            foregroundColor: AppColors.textPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -525,8 +506,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         IconButton.filled(
           onPressed: _goToManualDrone,
           style: IconButton.styleFrom(
-            backgroundColor: const Color(0xFF4CE0B3),
-            foregroundColor: const Color(0xFF061018),
+            backgroundColor: AppColors.primaryBright,
+            foregroundColor: AppColors.textOnAccent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -545,28 +526,28 @@ class _DashboardScreenState extends State<DashboardScreen>
         drone.batteryDisplay,
         drone.batteryPercentDisplay,
         Icons.battery_charging_full_rounded,
-        const Color(0xFF4CE0B3),
+        AppColors.primaryBright,
       ),
       _metricCard(
         'GPS',
         drone.gpsDisplay,
         'Navigation lock',
         Icons.satellite_alt_rounded,
-        const Color(0xFF6EA8FE),
+        AppColors.blue,
       ),
       _metricCard(
         'Telemetry',
         drone.speedDisplay,
         'Ground link',
         Icons.cell_tower_rounded,
-        const Color(0xFFFFB84D),
+        AppColors.warningBright,
       ),
       _metricCard(
         'Mode',
-        drone.mode,
+        drone.modeDisplay,
         'Flight state',
         Icons.auto_mode_rounded,
-        const Color(0xFFC084FC),
+        AppColors.purple,
       ),
     ];
 
@@ -614,8 +595,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           const SizedBox(height: 18),
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white54,
+            style: TextStyle(
+              color: AppColors.textMuted,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -626,8 +607,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
               ),
@@ -657,9 +638,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           TabBar(
             controller: _tabController,
             indicatorSize: TabBarIndicatorSize.tab,
-            indicatorColor: const Color(0xFF4CE0B3),
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white54,
+            indicatorColor: AppColors.primaryBright,
+            labelColor: AppColors.textPrimary,
+            unselectedLabelColor: AppColors.textMuted,
             tabs: const [
               Tab(text: 'Overview'),
               Tab(text: 'Systems'),
@@ -690,10 +671,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         runSpacing: 12,
         children: [
           _detailChip('Altitude', drone.altitudeDisplay),
+          _detailChip('Heading', drone.headingDisplay),
+          _detailChip('Speed', drone.speedDisplay),
           _detailChip('Battery Voltage', drone.batteryDisplay),
           _detailChip('Armed', drone.armDisplay),
-          _detailChip('Flight Mode', drone.mode),
-          _detailChip('Telemetry', drone.speedDisplay),
+          _detailChip('Flight Mode', drone.modeDisplay),
         ],
       ),
     );
@@ -705,23 +687,44 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Column(
         children: [
           StatusTile(
+            title: 'Heading',
+            value: drone.headingDisplay,
+            color: AppColors.warningBright,
+            icon: Icons.explore_rounded,
+          ),
+          const SizedBox(height: 10),
+          StatusTile(
+            title: 'Altitude',
+            value: drone.altitudeDisplay,
+            color: AppColors.primaryBright,
+            icon: Icons.height_rounded,
+          ),
+          const SizedBox(height: 10),
+          StatusTile(
+            title: 'Speed',
+            value: drone.speedDisplay,
+            color: AppColors.blue,
+            icon: Icons.speed_rounded,
+          ),
+          const SizedBox(height: 10),
+          StatusTile(
             title: 'Satellites',
             value: drone.satellitesDisplay,
-            color: const Color(0xFF4CE0B3),
+            color: AppColors.primaryBright,
             icon: Icons.satellite_alt_rounded,
           ),
           const SizedBox(height: 10),
           StatusTile(
             title: 'Armed',
             value: drone.armDisplay,
-            color: drone.armed ? Colors.redAccent : Colors.grey,
+            color: (drone.isConnected && drone.armed) ? Colors.redAccent : Colors.grey,
             icon: Icons.shield_rounded,
           ),
           const SizedBox(height: 10),
           StatusTile(
             title: 'Flight Mode',
-            value: drone.mode,
-            color: const Color(0xFFFFB84D),
+            value: drone.modeDisplay,
+            color: AppColors.warningBright,
             icon: Icons.auto_mode_rounded,
           ),
         ],
@@ -734,8 +737,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       future: recentFlightsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4CE0B3)),
+          return Center(
+            child: CircularProgressIndicator(color: AppColors.primaryBright),
           );
         }
         if (snapshot.hasError) {
@@ -748,10 +751,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
         final flights = snapshot.data ?? [];
         if (flights.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
               'No recent flights',
-              style: TextStyle(color: Colors.white54),
+              style: TextStyle(color: AppColors.textMuted),
             ),
           );
         }
@@ -806,14 +809,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                color: const Color(0xFF101C28),
+                color: AppColors.videoBg,
                 child: Stack(
                   children: [
                     CustomPaint(painter: GridPainter(), size: Size.infinite),
-                    const Center(
+                    Center(
                       child: Icon(
                         Icons.flight_rounded,
-                        color: Color(0xFF4CE0B3),
+                        color: AppColors.primaryBright,
                         size: 64,
                       ),
                     ),
@@ -825,7 +828,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Positioned(
                       right: 14,
                       bottom: 14,
-                      child: _overlayLabel(drone.mode),
+                      child: _overlayLabel(drone.modeDisplay),
                     ),
                   ],
                 ),
@@ -848,22 +851,38 @@ class _DashboardScreenState extends State<DashboardScreen>
           StatusTile(
             title: 'Satellites',
             value: drone.satellitesDisplay,
-            color: const Color(0xFF4CE0B3),
+            color: AppColors.primaryBright,
             icon: Icons.satellite_alt_rounded,
           ),
           const SizedBox(height: 10),
           StatusTile(
             title: 'GPS',
-            value: drone.gpsDisplay,
-            color: const Color(0xFF6EA8FE),
+            value: drone.gpsLat == 0 && drone.gpsLng == 0
+                ? 'No GPS fix'
+                : drone.gpsDisplay,
+            color: AppColors.blue,
             icon: Icons.location_on_rounded,
           ),
           const SizedBox(height: 10),
           StatusTile(
+            title: 'Heading',
+            value: drone.headingDisplay,
+            color: AppColors.warningBright,
+            icon: Icons.explore_rounded,
+          ),
+          const SizedBox(height: 10),
+          StatusTile(
             title: 'Flight Mode',
-            value: drone.mode,
-            color: const Color(0xFFFFB84D),
+            value: drone.modeDisplay,
+            color: AppColors.warningBright,
             icon: Icons.auto_mode_rounded,
+          ),
+          const SizedBox(height: 10),
+          StatusTile(
+            title: 'Altitude',
+            value: drone.altitudeDisplay,
+            color: AppColors.primaryBright,
+            icon: Icons.height_rounded,
           ),
         ],
       ),
@@ -871,9 +890,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildMapCard(DroneStatus drone) {
+    final hasGps = drone.isConnected && (drone.gpsLat != 0 || drone.gpsLng != 0);
+    final fbLat = hasGps ? drone.gpsLat : (TelemetryService.fallbackLat != 0.0 ? TelemetryService.fallbackLat : 20.0);
+    final fbLng = hasGps ? drone.gpsLng : (TelemetryService.fallbackLng != 0.0 ? TelemetryService.fallbackLng : 78.0);
+    final center = LatLng(fbLat, fbLng);
     return _panel(
       padding: const EdgeInsets.all(18),
-      child: Column(
+      child: AnimatedOpacity(
+        opacity: drone.isStale ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 500),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionTitle('Location Tracking', Icons.map_rounded),
@@ -882,30 +908,51 @@ class _DashboardScreenState extends State<DashboardScreen>
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               height: 190,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Container(color: const Color(0xFF10202C)),
-                  CustomPaint(painter: MapGridPainter()),
-                  const Center(
-                    child: Icon(
-                      Icons.my_location_rounded,
-                      color: Color(0xFFFF5A6B),
-                      size: 34,
+              child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 16,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all,
                     ),
                   ),
-                ],
-              ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.fynex.app',
+                    ),
+                    if (hasGps)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(drone.gpsLat, drone.gpsLng),
+                            width: 40,
+                            height: 40,
+                            child: Icon(
+                              Icons.flight,
+                              color: AppColors.dangerBright,
+                              size: 36,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
             ),
           ),
           const SizedBox(height: 14),
-          _keyValue('Coordinates', '18.5204 N, 73.8567 E'),
+          _keyValue(
+            'Coordinates',
+            hasGps ? drone.gpsDisplay : 'No GPS fix',
+          ),
           const SizedBox(height: 8),
           _keyValue('Altitude', drone.altitudeDisplay),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildTelemetrySummary(DroneStatus drone) {
     return _panel(
@@ -920,11 +967,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               final narrow = constraints.maxWidth < 680;
               final rows = [
                 _keyValue('Drone', drone.droneId),
-                _keyValue('Battery Voltage', drone.batteryDisplay),
+                _keyValue('Battery', drone.batteryDisplay),
+                _keyValue('Heading', drone.headingDisplay),
                 _keyValue('GPS', drone.gpsDisplay),
-                _keyValue('Telemetry', drone.speedDisplay),
+                _keyValue('Speed', drone.speedDisplay),
+                _keyValue('Altitude', drone.altitudeDisplay),
                 _keyValue('Armed', drone.armDisplay),
-                _keyValue('Flight Mode', drone.mode),
+                _keyValue('Flight Mode', drone.modeDisplay),
               ];
               if (narrow) {
                 return Column(
@@ -961,9 +1010,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F1B27),
+        color: AppColors.panel,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.borderSubtle),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.18),
@@ -979,12 +1028,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _sectionTitle(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: const Color(0xFF4CE0B3), size: 19),
+        Icon(icon, color: AppColors.primaryBright, size: 19),
         const SizedBox(width: 8),
         Text(
           title.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white70,
+          style: TextStyle(
+            color: AppColors.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.1,
@@ -999,9 +1048,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       width: 170,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF132638),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1009,8 +1058,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white54,
+            style: TextStyle(
+              color: AppColors.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1020,8 +1069,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -1033,13 +1082,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _recentFlightTile(FlightRecord flight) {
     final complete = flight.status.toLowerCase() == 'completed';
-    final color = complete ? const Color(0xFF4CE0B3) : const Color(0xFFFFB84D);
+    final color = complete ? AppColors.primaryBright : AppColors.warningBright;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF132638),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(
         children: [
@@ -1055,14 +1104,14 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 Text(
                   flight.missionName,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
                   flight.flownAt,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -1076,7 +1125,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               Text(
                 flight.distance,
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
           ),
@@ -1092,7 +1141,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         Flexible(
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
         ),
         const SizedBox(width: 12),
@@ -1101,8 +1150,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             value,
             textAlign: TextAlign.end,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -1145,12 +1194,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Text(
         value,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppColors.textPrimary,
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -1175,10 +1224,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.white38),
-      prefixIcon: Icon(icon, color: Colors.white38),
+      hintStyle: TextStyle(color: AppColors.textFaint),
+      prefixIcon: Icon(icon, color: AppColors.textFaint),
       filled: true,
-      fillColor: const Color(0xFF132638),
+      fillColor: AppColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -1190,12 +1239,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   Color _statusColor(String mode) {
     final normalized = mode.toUpperCase();
     if (normalized.contains('AUTO') || normalized.contains('GUIDED') || normalized.contains('LOITER') || normalized.contains('RTL')) {
-      return const Color(0xFF4CE0B3);
+      return AppColors.primaryBright;
     }
     if (normalized.contains('STABILIZE') || normalized.contains('ALT_HOLD') || normalized.contains('POSHOLD') || normalized.contains('LAND')) {
-      return const Color(0xFFFFB84D);
+      return AppColors.warningBright;
     }
-    return const Color(0xFFFF5A6B);
+    return AppColors.dangerBright;
   }
 }
 
@@ -1213,7 +1262,7 @@ class GridPainter extends CustomPainter {
     }
 
     final target = Paint()
-      ..color = const Color(0xFF4CE0B3).withValues(alpha: 0.55)
+      ..color = AppColors.primaryBright.withValues(alpha: 0.55)
       ..strokeWidth = 1.4
       ..style = PaintingStyle.stroke;
     final center = Offset(size.width / 2, size.height / 2);
@@ -1239,7 +1288,7 @@ class MapGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF6EA8FE).withValues(alpha: 0.16)
+      ..color = AppColors.blue.withValues(alpha: 0.16)
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     final center = Offset(size.width / 2, size.height / 2);
